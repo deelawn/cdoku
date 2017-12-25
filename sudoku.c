@@ -678,6 +678,79 @@ int **generateBoard(int difficulty, int ***solutionBoard){
     return board;
 }
 
+void initStats(GameStats *stats, int difficulty){
+    memset(stats, sizeof(GameStats), '\0');
+    stats->startTime = time(null);
+    stats->difficulty = difficulty;
+}
+
+bool loadGame(int ***board, int ***solutionBoard, GameStats *stats){
+    // Prompt for and read in game name
+    char *gameName = malloc(256);
+    printf(" ");
+    fgets(gameName, 256, stdin);
+    printf("\nType the name of the name you'd like to load:\n\n");
+    printf("%c ", INPUT_CHAR);
+    fgets(gameName, 256, stdin);
+    gameName[strlen(gameName) - 1] = '\0';
+
+    // Try to open the file
+    FILE *fp;
+    fp = fopen(gameName, "r");
+
+    // File open failed
+    if(fp == null){
+        printf("\nCould not open saved file named %s", gameName);
+        return true;
+    }
+
+    // TODO: validate values being read in for board and stats
+
+    // Read in board
+    *board = malloc(sizeof(int *) * BOARD_SIZE);
+    initBoard(board);
+    char boardLine[BOARD_SIZE * BOARD_SIZE + 1];
+    void *result = (void *)fgets(boardLine, sizeof(boardLine), fp);
+    if(result == null){
+        printf("\nInput file is invalid.");
+        freeBoard(*board);
+        return true;
+    }
+
+    int count = 0;
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
+            (*board)[i][j] = (int)boardLine[count] - CIPHER_OFFSET;
+            count++;
+        }
+    }
+
+    // Read in solution board
+    *solutionBoard = malloc(sizeof(int *) * BOARD_SIZE);
+    initBoard(solutionBoard);
+    char solutionLine[BOARD_SIZE * BOARD_SIZE + 1];
+    result = (void *)fgets(solutionLine, sizeof(solutionLine), fp);
+    if(result == null){
+        printf("\nInput file is invalid.");
+        freeBoard(*solutionBoard);
+        return true;
+    }
+
+    count = 0;
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
+            (*solutionBoard)[i][j] = (int)solutionLine[count] - CIPHER_OFFSET;
+            count++;
+        }
+    }
+
+    // Read in the stats
+    initStats(stats, 1);
+
+    fclose(fp);
+    return false;
+}
+
 int getListOption(char *menu_title, const char **list_options, int numOptions){
     bool validOption = false;
     int optionChoice;
@@ -710,26 +783,32 @@ int main(){
         enum mainEnum listOption = 
             getListOption(MAIN_MENU_TITLE, MAIN_MENU_OPTIONS, MAIN_MENU_SIZE);
 
+        int **board, **solutionBoard;
+        GameStats stats;
+
         switch(listOption){
             case NewGame:
+            {
                 printf("\n");
                 enum difficultyEnum difficulty = 
                     getListOption(DIFFICULTY_MENU_TITLE, DIFFICULTY_MENU_OPTIONS, DIFFICULTY_MENU_SIZE);
                 printf("\nPlease wait while board generates...\n");
-                int **solutionBoard;
-                int **board = generateBoard(difficulty, &solutionBoard);
+                board = generateBoard(difficulty, &solutionBoard);
 
-                GameStats stats;
-                memset(&stats, sizeof(GameStats), '\0');
-                stats.startTime = time(null);
-                stats.difficulty = difficulty;
-
+                initStats(&stats, difficulty);
                 play(board, solutionBoard, &stats);
                 freeBoard(board);
                 freeBoard(solutionBoard);
                 break;
+            }
             case LoadGame:
+            {
+                bool loadOkay = !loadGame(&board, &solutionBoard, &stats);
+                if(loadOkay){
+                    play(board, solutionBoard, &stats);
+                }
                 break;
+            }
             case Exit:
                 exit(0);
         }
