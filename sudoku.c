@@ -26,6 +26,8 @@
 #define ASCII_LETTER_DIFF 65
 #define SPACE_VAL 32
 #define BASE_SCORE 1000
+#define SAVE_N_CMP 5
+#define CIPHER_OFFSET 30
 
 typedef int bool;
 
@@ -313,7 +315,7 @@ void printHint(int **board, int **solutionBoard){
     }
 }
 
-int doMove(int ***board, const char *move, int **solutionBoard, GameStats *stats){
+int doMove(int ***board, const char *move, int **solutionBoard, GameStats **stats){
     if(strcmp(move, "quit\n") == 0){
         return Quit;
     }
@@ -328,14 +330,30 @@ int doMove(int ***board, const char *move, int **solutionBoard, GameStats *stats
         return Hint;
     }
 
+    if(strcmp(move, "checking on\n") == 0){
+        (*stats)->checksOn = true;
+        printf("\n%s\n", "checking is turned on");
+        return Check_Toggle;
+    }
+
+    if(strcmp(move, "checking off\n") == 0){
+        (*stats)->checksOn = false;
+        printf("\n%s\n", "checking is turned off");
+        return Check_Toggle;
+    }
+
+    if(strncmp(move, "save ", SAVE_N_CMP) == 0){
+        return Save;
+    }
+
     // In this sense isMove means "will it change the value on the board?"
     if(isMove(move)){
         int rowPosition = move[0] - ASCII_NUM_DIFF - 1;
         int colPosition = move[1] - ASCII_LETTER_DIFF;
         int value = move[3] - ASCII_NUM_DIFF;
 
-        if(stats->checksOn && !moveIsValid(rowPosition, colPosition, value, *board)){
-            printf("\nChecks are on. This move violates constraints on a winning board.");
+        if((*stats)->checksOn && !moveIsValid(rowPosition, colPosition, value, *board)){
+            printf("\nChecks are on. This move violates constraints on a winning board.\n");
             return Check;
         }else{
             (*board)[rowPosition][colPosition] = value;
@@ -368,6 +386,56 @@ int calculateScore(GameStats *stats){
     return score;
 }
 
+bool saveGame(int **board, int **solutionBoard, GameStats *stats, char *filename){
+    // Try to open file
+    FILE *fp;
+    fp = fopen(filename, "w");
+
+    // File open failed
+    if(fp == null){
+        return true;
+    }
+
+    // Write board all on one line
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
+            fprintf(fp, "%c", (char)(board[i][j] + CIPHER_OFFSET));
+        }
+    }
+
+    fprintf(fp, "\n");
+
+    // Write solution board all on one line
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
+            fprintf(fp, "%c", (char)(solutionBoard[i][j] + CIPHER_OFFSET));
+        }
+    }
+
+    fprintf(fp, "\n");
+
+    // Write each game stat on a separate line
+    fprintf(fp, "%d\n", stats->checksOn + CIPHER_OFFSET);
+    fprintf(fp, "%d\n", stats->elapsedTime + CIPHER_OFFSET);
+    fprintf(fp, "%d\n", stats->numHints + CIPHER_OFFSET);
+    fprintf(fp, "%d\n", stats->numChecks + CIPHER_OFFSET);
+    fprintf(fp, "%d\n", stats->difficulty + CIPHER_OFFSET);
+    fprintf(fp, "%d\n", (int)(stats->startTime + CIPHER_OFFSET));
+    fprintf(fp, "\n");
+
+    fclose(fp);
+
+    printf("\nGame saved\n");
+
+    return 0;
+}
+
+char *getSaveFilename(const char *move){
+    char *filename = malloc(strlen(move) - SAVE_N_CMP);
+    strncpy(filename, &move[SAVE_N_CMP], strlen(&move[SAVE_N_CMP]) - 1);
+    return filename;
+}
+
 void play(int **board, int **solutionBoard, GameStats *stats){
     display(board);
     while(true){
@@ -377,8 +445,7 @@ void play(int **board, int **solutionBoard, GameStats *stats){
         bool isMove = false;
 
         const char *move = getMove();
-        enum moveTypeEnum moveType = doMove(&board, move, solutionBoard, stats);
-        free((void *) move);
+        enum moveTypeEnum moveType = doMove(&board, move, solutionBoard, &stats);
 
         switch(moveType){
             case Move:
@@ -396,21 +463,29 @@ void play(int **board, int **solutionBoard, GameStats *stats){
             case Check:
                 stats->numChecks++;
                 break;
-            case Check_Toggle:
-                stats->checksOn = !stats->checksOn;
-                break;
             case Save:
                 isSaved = true;
                 break;
             default:
                 break;
         }
-        
-        if(isQuit){
-            break;
-        }
 
         if(isSaved){
+            char *saveFile = getSaveFilename(move);
+            bool saveFailed = saveGame(board, solutionBoard, stats, saveFile);
+            free(saveFile);
+
+            if(saveFailed){
+                printf("\nFailed to save game\n");
+            }else{
+                free((void *) move);
+                break;
+            }
+        }
+
+        free((void *) move);
+        
+        if(isQuit){
             break;
         }
 
