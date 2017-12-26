@@ -107,6 +107,7 @@ typedef struct GameStats{
     time_t startTime;
 } GameStats;
 
+// Check whether a move violates the constraints of a winning sudoku board
 bool moveIsValid(int row, int col, int value, int **board){
     // Check if in row
     for(int i = 0; i < BOARD_SIZE; i++){
@@ -149,6 +150,8 @@ bool moveIsValid(int row, int col, int value, int **board){
     return true;
 }
 
+// Display the board in its current state. This get called
+// after most moves/actions
 void display(int **board){
     // Allocate various spacing/display variables
     int numColSeparators = 2;
@@ -220,6 +223,7 @@ void display(int **board){
     free(separator);
 }
 
+// Prompt the user for a move/input action
 char *getMove(){
     char *userInput = malloc(16);
     printf("\nEnter a command. Type 'help' for how to play:\n\n");
@@ -228,6 +232,7 @@ char *getMove(){
     return userInput;
 }
 
+// Check whether a move is valid
 bool isMove(const char *move){
     bool validRow = false;
     bool validCol = false;
@@ -256,6 +261,9 @@ bool isMove(const char *move){
 
 }
 
+// Check if the board is full.  This is used to see if the board
+// is full when it is not in a winning state, and will result in
+// the user being alerted as such
 bool hasFinished(int **board){
     for(int i = 0; i < BOARD_SIZE; i++){
         for(int j = 0; j < BOARD_SIZE; j++){
@@ -266,6 +274,9 @@ bool hasFinished(int **board){
     return true;
 }
 
+// Print a hint that will affect the user's score. A hint looks at the
+// solution board and tells users which move to make to get closer
+// to the solution
 void printHint(int **board, int **solutionBoard){
     int rowCount = 0;
     int colCount = 0;
@@ -315,6 +326,7 @@ void printHint(int **board, int **solutionBoard){
     }
 }
 
+// Parse a move entered by the user and take the appropriate action
 int doMove(int ***board, const char *move, int **solutionBoard, GameStats **stats){
     if(strcmp(move, "quit\n") == 0){
         return Quit;
@@ -361,8 +373,12 @@ int doMove(int ***board, const char *move, int **solutionBoard, GameStats **stat
 
         return Move;
     }
+
+    return Error;
 }
 
+// Called after each move that alters the board to check
+// if the board is now in a winning state
 bool hasWon(int **board){
     for(int i = 0; i < BOARD_SIZE; i++){
         for(int j = 0; j < BOARD_SIZE; j++){
@@ -375,6 +391,7 @@ bool hasWon(int **board){
     return true;
 }
 
+// Upon winning the game, use the game stats to calculate the score
 int calculateScore(GameStats *stats){
     time_t endTime = time(null);
     int totalTime = (int)(endTime - stats->startTime) + stats->elapsedTime;
@@ -386,6 +403,8 @@ int calculateScore(GameStats *stats){
     return score;
 }
 
+// Save the game by writing out the board, solution board, and stats, all of which are
+// rudimentary encrypted using a simple cipher, to a file of the name of the user's choosing
 bool saveGame(int **board, int **solutionBoard, GameStats *stats, char *filename){
     // Try to open file
     FILE *fp;
@@ -416,11 +435,10 @@ bool saveGame(int **board, int **solutionBoard, GameStats *stats, char *filename
 
     // Write each game stat on a separate line
     fprintf(fp, "%d\n", stats->checksOn + CIPHER_OFFSET);
-    fprintf(fp, "%d\n", stats->elapsedTime + CIPHER_OFFSET);
+    fprintf(fp, "%d\n", stats->elapsedTime + (int)(time(null) - stats->startTime) + CIPHER_OFFSET);
     fprintf(fp, "%d\n", stats->numHints + CIPHER_OFFSET);
     fprintf(fp, "%d\n", stats->numChecks + CIPHER_OFFSET);
     fprintf(fp, "%d\n", stats->difficulty + CIPHER_OFFSET);
-    fprintf(fp, "%d\n", (int)(stats->startTime + CIPHER_OFFSET));
     fprintf(fp, "\n");
 
     fclose(fp);
@@ -430,12 +448,16 @@ bool saveGame(int **board, int **solutionBoard, GameStats *stats, char *filename
     return 0;
 }
 
+// If the user chose to save the game, then parse the move text to grab
+// the name of the file they entered
 char *getSaveFilename(const char *move){
     char *filename = malloc(strlen(move) - SAVE_N_CMP);
     strncpy(filename, &move[SAVE_N_CMP], strlen(&move[SAVE_N_CMP]) - 1);
     return filename;
 }
 
+// Loop that processes each turn/action made while playing the 
+// sudoku game
 void play(int **board, int **solutionBoard, GameStats *stats){
     display(board);
     while(true){
@@ -443,6 +465,7 @@ void play(int **board, int **solutionBoard, GameStats *stats){
         bool isSaved = false;
         bool isHelp = false;
         bool isMove = false;
+        bool isError = false;
 
         const char *move = getMove();
         enum moveTypeEnum moveType = doMove(&board, move, solutionBoard, &stats);
@@ -466,8 +489,15 @@ void play(int **board, int **solutionBoard, GameStats *stats){
             case Save:
                 isSaved = true;
                 break;
+            case Error:
+                isError = true;
+                break;
             default:
                 break;
+        }
+
+        if(isError){
+            printf("\nInvalid input\n");
         }
 
         if(isSaved){
@@ -503,6 +533,7 @@ void play(int **board, int **solutionBoard, GameStats *stats){
     }
 }
 
+// Free memory allocated for a build value linked list
 void freeBuildValue(BuildValue *value){
     BuildValue *nextValue;
     while(value != null){
@@ -512,6 +543,7 @@ void freeBuildValue(BuildValue *value){
     }
 }
 
+// Get the ith element from a build value linked list
 int getBuildValue(BuildValue *value, int index){
     BuildValue *currValue = value;
     for(int i = 0; i < index; i++){
@@ -521,6 +553,7 @@ int getBuildValue(BuildValue *value, int index){
     return currValue->value;
 }
 
+// Initialize a build value linked list
 BuildValue *initBuildValue(){
     BuildValue *returnValue = malloc(sizeof(BuildValue));
     returnValue->value = -1;
@@ -528,6 +561,7 @@ BuildValue *initBuildValue(){
     return returnValue;
 }
 
+// Add a value to the build value linked list
 void addBuildValue(BuildValue **value, int addValue){
     if((*value)->value == -1){
         (*value)->value = addValue;
@@ -544,14 +578,20 @@ void addBuildValue(BuildValue **value, int addValue){
     curr->next->next = null;
 }
 
+// Free all memory allocated for a board
 void freeBoard(int **board){
+    if(board == null)
+        return;
+
     for(int i = 0; i < BOARD_SIZE; i++){
-        free(board[i]);
+        if(board[i] != null)
+            free(board[i]);
     }
 
     free(board);
 }
 
+// Returns the next column that will be filled in with a value when generating a board
 int getNextCol(int **board, int row, BuildValue **colChoices, int *numChoices){
     int leastChoices = BOARD_SIZE + 1;
     int nextCol;
@@ -590,6 +630,8 @@ int getNextCol(int **board, int row, BuildValue **colChoices, int *numChoices){
     return nextCol;
 }
 
+// After generating a board, remove a certain number of values
+// depending on the difficulty chosen
 void removeValues(int difficulty, int ***board){
     int numToRemove;
     time_t t;
@@ -684,10 +726,63 @@ void initStats(GameStats *stats, int difficulty){
     stats->difficulty = difficulty;
 }
 
+bool loadBoard(FILE *fp, int ***board){
+    *board = malloc(sizeof(int *) * BOARD_SIZE);
+    initBoard(board);
+    char boardLine[BOARD_SIZE * BOARD_SIZE + 2];
+    void *result = (void *)fgets(boardLine, sizeof(boardLine), fp);
+    if(result == null){
+        return true;
+    }
+
+    int count = 0;
+    for(int i = 0; i < BOARD_SIZE; i++){
+        for(int j = 0; j < BOARD_SIZE; j++){
+            (*board)[i][j] = (int)boardLine[count] - CIPHER_OFFSET;
+
+            // Validate values that are being read in
+            if(!(((*board)[i][j] >= 1 && (*board)[i][j] <= 9) || (*board)[i][j] == (int)SPACE_VAL))
+                return true;
+
+            count++;
+        }
+    }
+
+    return false;
+}
+
+bool readStatsInt(FILE *fp, int *stat){
+    char *nextLine = malloc(64);
+    void *result = (void *)fgets(nextLine, sizeof(nextLine), fp);
+    if(result == null){
+        free(nextLine);
+        return true;
+    }
+
+    // Remove the newline character
+    nextLine[strlen(nextLine) - 1] = '\0';
+
+    // Read the integer
+    int readInt = sscanf(nextLine, "%d", stat);
+    if(!readInt){
+        return true;
+    }
+
+    *stat -= CIPHER_OFFSET;
+    return false;
+}
+
+bool loadStats(FILE *fp, GameStats *stats){    
+    return (readStatsInt(fp, &stats->checksOn) || readStatsInt(fp, &stats->elapsedTime) ||
+        readStatsInt(fp, &stats->numHints) || readStatsInt(fp, &stats->numChecks) ||
+        readStatsInt(fp, &stats->difficulty));
+}
+
 bool loadGame(int ***board, int ***solutionBoard, GameStats *stats){
     // Prompt for and read in game name
     char *gameName = malloc(256);
     printf(" ");
+    // Do an fgets to clear the input buffer
     fgets(gameName, 256, stdin);
     printf("\nType the name of the name you'd like to load:\n\n");
     printf("%c ", INPUT_CHAR);
@@ -697,60 +792,29 @@ bool loadGame(int ***board, int ***solutionBoard, GameStats *stats){
     // Try to open the file
     FILE *fp;
     fp = fopen(gameName, "r");
+    free(gameName);
 
     // File open failed
     if(fp == null){
-        printf("\nCould not open saved file named %s", gameName);
         return true;
     }
 
-    // TODO: validate values being read in for board and stats
-
-    // Read in board
-    *board = malloc(sizeof(int *) * BOARD_SIZE);
-    initBoard(board);
-    char boardLine[BOARD_SIZE * BOARD_SIZE + 1];
-    void *result = (void *)fgets(boardLine, sizeof(boardLine), fp);
-    if(result == null){
-        printf("\nInput file is invalid.");
-        freeBoard(*board);
+    // Read in boards and return if an error is encountered
+    if(loadBoard(fp, board) || loadBoard(fp, solutionBoard))
         return true;
-    }
-
-    int count = 0;
-    for(int i = 0; i < BOARD_SIZE; i++){
-        for(int j = 0; j < BOARD_SIZE; j++){
-            (*board)[i][j] = (int)boardLine[count] - CIPHER_OFFSET;
-            count++;
-        }
-    }
-
-    // Read in solution board
-    *solutionBoard = malloc(sizeof(int *) * BOARD_SIZE);
-    initBoard(solutionBoard);
-    char solutionLine[BOARD_SIZE * BOARD_SIZE + 1];
-    result = (void *)fgets(solutionLine, sizeof(solutionLine), fp);
-    if(result == null){
-        printf("\nInput file is invalid.");
-        freeBoard(*solutionBoard);
-        return true;
-    }
-
-    count = 0;
-    for(int i = 0; i < BOARD_SIZE; i++){
-        for(int j = 0; j < BOARD_SIZE; j++){
-            (*solutionBoard)[i][j] = (int)solutionLine[count] - CIPHER_OFFSET;
-            count++;
-        }
-    }
 
     // Read in the stats
-    initStats(stats, 1);
+    if(loadStats(fp, stats))
+        return true;
+
+    // Set the new start time
+    stats->startTime = time(null);
 
     fclose(fp);
     return false;
 }
 
+// A generic routine for displaying a list of options and returning the user's choice
 int getListOption(char *menu_title, const char **list_options, int numOptions){
     bool validOption = false;
     int optionChoice;
@@ -777,13 +841,24 @@ int getListOption(char *menu_title, const char **list_options, int numOptions){
     return optionChoice;
 }
 
+// Can be used for debugging purposes
+void printStats(GameStats *stats){
+    printf("Checks on: %d\n", stats->checksOn);
+    printf("Elapsed time: %d\n", stats->elapsedTime);
+    printf("Num hints: %d\n", stats->numHints);
+    printf("Num checks: %d\n", stats->numChecks);
+    printf("Difficulty: %d\n", stats->difficulty);
+    printf("Start time: %d\n", (int)stats->startTime);
+}
+
 int main(){
     while(true){
         printf("Welcome to Dylan's Sudoku!\n\n");
         enum mainEnum listOption = 
             getListOption(MAIN_MENU_TITLE, MAIN_MENU_OPTIONS, MAIN_MENU_SIZE);
 
-        int **board, **solutionBoard;
+        int **board = null;
+        int **solutionBoard = null;
         GameStats stats;
 
         switch(listOption){
@@ -796,6 +871,9 @@ int main(){
                 board = generateBoard(difficulty, &solutionBoard);
 
                 initStats(&stats, difficulty);
+                char junk[256];
+                // Clear stdin buffer
+                fgets(junk, 256, stdin);
                 play(board, solutionBoard, &stats);
                 freeBoard(board);
                 freeBoard(solutionBoard);
@@ -806,7 +884,12 @@ int main(){
                 bool loadOkay = !loadGame(&board, &solutionBoard, &stats);
                 if(loadOkay){
                     play(board, solutionBoard, &stats);
+                }else{
+                    printf("\n\nInvalid or nonexistent file.\n\n");
                 }
+
+                freeBoard(board);
+                freeBoard(solutionBoard);
                 break;
             }
             case Exit:
